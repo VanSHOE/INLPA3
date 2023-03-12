@@ -1,3 +1,4 @@
 *.json
 .idea/*
 tokenized/*
+co_occurrence.pkl

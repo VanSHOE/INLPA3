@@ -51,10 +51,26 @@ for line in file:
     lines += 1
 
 print("Lines: ", lines)
+
+if not os.path.exists('reviews_Movies_and_TV_processed.json'):
+    newJson = open("reviews_Movies_and_TV_processed.json", "a", encoding='utf-8')
+    file.seek(0)
+    with alive_bar(lines) as bar:
+        for line in file:
+            jD = json.loads(line)
+            sentences = nltk.sent_tokenize(jD['reviewText'])
+            for i in range(len(sentences)):
+                sentences[i] = pre_process(sentences[i])
+
+            token2d = [nltk.word_tokenize(sent) for sent in sentences]
+            # save to json
+            jD['reviewText'] = token2d
+            newJson.write(json.dumps(jD) + '\n')
+            bar()
+    newJson.close()
+
+processed_file = open('reviews_Movies_and_TV_processed.json', 'r', encoding='utf-8')
 vocab = {}
-jsonLoadTime = 0
-processTime = 0
-dictTime = 0
 if os.path.exists('vocab.pkl'):
     print("Loading Vocab...")
     vocab = pickle.load(open('vocab.pkl', 'rb'))
@@ -62,18 +78,10 @@ else:
     print("Calculating Vocab Size...")
     file.seek(0)
     with alive_bar(lines) as bar:
-        for line in file:
-            start = time.perf_counter()
+        for line in processed_file:
             jD = json.loads(line)
-            jsonLoadTime += time.perf_counter() - start
-            start = time.perf_counter()
-            sentences = nltk.sent_tokenize(jD['reviewText'])
-            for i in range(len(sentences)):
-                sentences[i] = pre_process(sentences[i])
+            token2d = jD['reviewText']
 
-            token2d = [nltk.word_tokenize(sent) for sent in sentences]
-            processTime += time.perf_counter() - start
-            start = time.perf_counter()
             for token in token2d:
                 for word in token:
                     if word not in vocab:
@@ -81,18 +89,9 @@ else:
                     else:
                         vocab[word] += 1
 
-            dictTime += time.perf_counter() - start
-
             bar()
     print("Saving Vocab...")
     pickle.dump(vocab, open('vocab.pkl', 'wb'))
-    print("JSON Load Time: ", jsonLoadTime)
-    print("Process Time: ", processTime)
-    print("Dict Time: ", dictTime)
-    # Ratios
-    print("JSON Load Time Ratio: ", jsonLoadTime / (jsonLoadTime + processTime + dictTime))
-    print("Process Time Ratio: ", processTime / (jsonLoadTime + processTime + dictTime))
-    print("Dict Time Ratio: ", dictTime / (jsonLoadTime + processTime + dictTime))
 
 print("Vocab Size: ", len(vocab))
 
@@ -106,5 +105,45 @@ with alive_bar(len(vocab)) as bar:
         bar()
 
 print("Vocab Size: ", len(new_vocab))
+new_vocabIdx = {}
 
-co_occurrence = [0 for i in range(len(new_vocab)) for j in range(len(new_vocab))]
+co_occurrence = np.zeros((len(new_vocab), len(new_vocab)))
+if os.path.exists('co_occurrence.pkl'):
+    print("Loading Co-Occurrence...")
+    new_vocabIdx, co_occurrence = pickle.load(open('co_occurrence.pkl', 'rb'))
+else:
+    idx = 0
+    for word in new_vocab:
+        new_vocabIdx[word] = idx
+        idx += 1
+
+    print("Calculating Co-Occurrence...")
+    processed_file.seek(0)
+    with alive_bar(lines) as bar:
+        for line in processed_file:
+            jD = json.loads(line)
+            token2d = jD['reviewText']
+
+            for token in token2d:
+                indices = [new_vocabIdx.get(word, None) for word in token]
+                indices = [i for i in indices if i is not None]
+                co_occurrence[np.ix_(indices, indices)] += 1
+
+            bar()
+    print("Saving Co-Occurrence...")
+    pickle.dump((new_vocabIdx, co_occurrence), open('co_occurrence.pkl', 'wb'))
+print(co_occurrence)
+print("Co-Occurrence Shape: ", co_occurrence.shape)
+# Take the SVD of co-occurrence matrix
+if os.path.exists('svd.pkl'):
+    print("Loading SVD...")
+    u, s, vh = pickle.load(open('svd.pkl', 'rb'))
+else:
+    u, s, vh = np.linalg.svd(co_occurrence)
+    print("Saving SVD...")
+    pickle.dump((u, s, vh), open('svd.pkl', 'wb'))
+
+# Print shapes of the matrices
+print("U Shape: ", u.shape)
+print("S Shape: ", s.shape)
+print("Vh Shape: ", vh.shape)
