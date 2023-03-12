@@ -6,6 +6,8 @@ import nltk
 import os
 import pickle
 import time
+import matplotlib.pyplot as plt
+import numpy as np
 
 
 def pre_process(in_text: str) -> str:
@@ -94,39 +96,15 @@ else:
 
 print("Vocab Size: ", len(vocab))
 
-exit(0)
-# co occurence matrix
-w2Idx = {}
-curIdx = 0
-if os.path.exists('co_occurence.pkl'):
-    print("Loading Co-Occurence Matrix...")
-    co_occurence = pickle.load(open('co_occurence.pkl', 'rb'))
-else:
-    print("Calculating Co-Occurence Matrix...")
-    co_occurence = [[0 for i in range(len(vocab))] for j in range(len(vocab))]
-    print("Co-Occurence Matrix Initialized...")
-    file.seek(0)
-    with alive_bar(lines) as bar:
-        for line in file:
-            jD = json.loads(line)
-            sentences = nltk.sent_tokenize(jD['reviewText'])
-            for i in range(len(sentences)):
-                sentences[i] = pre_process(sentences[i])
+thresh = 500
 
-            token2d = [nltk.word_tokenize(sent) for sent in sentences]
-            for token in token2d:
-                for word in token:
-                    if word not in w2Idx:
-                        w2Idx[word] = curIdx
-                        curIdx += 1
+new_vocab = {}
+with alive_bar(len(vocab)) as bar:
+    for word in vocab:
+        if vocab[word] >= thresh:
+            new_vocab[word] = vocab[word]
+        bar()
 
-                    for word2 in token:
-                        if word2 not in w2Idx:
-                            w2Idx[word2] = curIdx
-                            curIdx += 1
-                        co_occurence[w2Idx[word]][w2Idx[word2]] += 1
-            bar()
-    print("Saving Co-Occurence Matrix...")
-    pickle.dump(co_occurence, open('co_occurence.pkl', 'wb'))
+print("Vocab Size: ", len(new_vocab))
 
-print("Co-Occurence Matrix Size: ", len(co_occurence))
+co_occurrence = [0 for i in range(len(new_vocab)) for j in range(len(new_vocab))]
