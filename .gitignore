@@ -2,3 +2,4 @@
 .idea/*
 tokenized/*
 co_occurrence.pkl
+svd.pkl

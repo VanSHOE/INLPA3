@@ -6,8 +6,8 @@ import nltk
 import os
 import pickle
 import time
-import matplotlib.pyplot as plt
 import numpy as np
+import plotly.express as px
 
 
 def pre_process(in_text: str) -> str:
@@ -147,3 +147,7 @@ else:
 print("U Shape: ", u.shape)
 print("S Shape: ", s.shape)
 print("Vh Shape: ", vh.shape)
+
+# Plot the singular values dark mode
+fig = px.line(x=np.arange(1, len(s) + 1), y=s, title='Singular Values', template='plotly_dark')
+fig.show()
