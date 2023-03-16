@@ -4,3 +4,4 @@ nltk==3.8.1
 numpy==1.24.2
 plotly==5.13.1
 pandas
+scikit-learn~=1.2.2

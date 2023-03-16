@@ -8,6 +8,8 @@ import pickle
 import time
 import numpy as np
 import plotly.express as px
+from sklearn.manifold import TSNE
+import matplotlib.pyplot as plt
 
 
 def pre_process(in_text: str) -> str:
@@ -148,13 +150,54 @@ newVocabIdx2Word = {v: k for k, v in new_vocabIdx.items()}
 print("U Shape: ", u.shape)
 print("S Shape: ", s.shape)
 print("Vh Shape: ", vh.shape)
-
+u = u[:, :1000]
 # Plot the singular values dark mode
 # fig = px.line(x=np.arange(1, len(s) + 1), y=s, title='Singular Values', template='plotly_dark')
 # fig.show()
+# a
 
+
+words = ['dog', 'run', 'happy', 'eat', 'blue']
+
+# extract the embeddings for the words
+word_embeddings = np.array([u[word_idx] for word_idx in [new_vocabIdx[word] for word in words]])
+
+# Create a list of five words
+
+# Extract the top 10 word vectors for each word
+top_word_embeddings = []
+top_word_idxsG = []
+for word in words:
+    word_idx = new_vocabIdx[word]
+    distances = np.linalg.norm(u - u[word_idx], axis=1)
+    top_word_idxs = np.argsort(distances)[1:11]  # exclude the word itself
+    top_word_embeddings.append(u[top_word_idxs])
+    top_word_idxsG.append(top_word_idxs)
+
+# Concatenate the top word embeddings into a single array
+word_embeddings_top10 = np.concatenate(top_word_embeddings)
+
+# Reduce the dimensionality of the embeddings using t-SNE
+perplexity = 10
+tsne = TSNE(n_components=2, perplexity=perplexity, n_iter=5000, random_state=42)
+word_embeddings_tsne = tsne.fit_transform(word_embeddings_top10)
+
+# Plot the word embeddings using a scatter plot
+plt.figure(figsize=(10, 10))
+for i, word in enumerate(words):
+    plt.scatter(word_embeddings_tsne[i * 10:(i + 1) * 10, 0],
+                word_embeddings_tsne[i * 10:(i + 1) * 10, 1],
+                label=word)
+    # annotate
+    for j, word in enumerate(top_word_embeddings[i]):
+        plt.annotate(newVocabIdx2Word[top_word_idxsG[i][j]],
+                     (word_embeddings_tsne[i * 10 + j, 0], word_embeddings_tsne[i * 10 + j, 1]))
+plt.legend()
+plt.show()
+
+# b
 word2compare = "titanic"
-u = u[:, :1000]
+
 # get top 10 words closest to the word
 word2compareIdx = new_vocabIdx[word2compare]
 word2compareVec = u[word2compareIdx, :]
@@ -163,4 +206,3 @@ top10 = np.argsort(distances)[1:11]
 print("Top 10 words closest to ", word2compare)
 for word in top10:
     print(newVocabIdx2Word[word])
-
