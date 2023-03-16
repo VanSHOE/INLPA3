@@ -157,7 +157,7 @@ u = u[:, :1000]
 # a
 
 
-words = ['dog', 'run', 'happy', 'eat', 'blue']
+words = ['sink', 'boat', 'deadly', 'the', 'captain']
 
 # extract the embeddings for the words
 word_embeddings = np.array([u[word_idx] for word_idx in [new_vocabIdx[word] for word in words]])
@@ -193,7 +193,7 @@ for i, word in enumerate(words):
         plt.annotate(newVocabIdx2Word[top_word_idxsG[i][j]],
                      (word_embeddings_tsne[i * 10 + j, 0], word_embeddings_tsne[i * 10 + j, 1]))
 plt.legend()
-plt.show()
+plt.savefig('SVD_TSNE.png')
 
 # b
 word2compare = "titanic"
