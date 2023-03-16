@@ -132,7 +132,7 @@ else:
             bar()
     print("Saving Co-Occurrence...")
     pickle.dump((new_vocabIdx, co_occurrence), open('co_occurrence.pkl', 'wb'))
-print(co_occurrence)
+# print(co_occurrence)
 print("Co-Occurrence Shape: ", co_occurrence.shape)
 # Take the SVD of co-occurrence matrix
 if os.path.exists('svd.pkl'):
@@ -144,10 +144,23 @@ else:
     pickle.dump((u, s, vh), open('svd.pkl', 'wb'))
 
 # Print shapes of the matrices
+newVocabIdx2Word = {v: k for k, v in new_vocabIdx.items()}
 print("U Shape: ", u.shape)
 print("S Shape: ", s.shape)
 print("Vh Shape: ", vh.shape)
 
 # Plot the singular values dark mode
-fig = px.line(x=np.arange(1, len(s) + 1), y=s, title='Singular Values', template='plotly_dark')
-fig.show()
+# fig = px.line(x=np.arange(1, len(s) + 1), y=s, title='Singular Values', template='plotly_dark')
+# fig.show()
+
+word2compare = "titanic"
+u = u[:, :1000]
+# get top 10 words closest to the word
+word2compareIdx = new_vocabIdx[word2compare]
+word2compareVec = u[word2compareIdx, :]
+distances = np.linalg.norm(u - word2compareVec, axis=1)
+top10 = np.argsort(distances)[1:11]
+print("Top 10 words closest to ", word2compare)
+for word in top10:
+    print(newVocabIdx2Word[word])
+
