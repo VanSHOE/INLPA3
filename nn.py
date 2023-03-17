@@ -9,14 +9,15 @@ import os
 import json
 
 random.seed(time.time())
-
+logFile = open(f"logs/loss.txt", "w", encoding="utf8")
 sentenceLens = {}
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(device)
-
-CONTEXT = 3  # Left and right context hence total context is 2*CONTEXT
-sentenceLimit = 10000
-BATCH_SIZE = 32
+logFile.write(device + "\n")
+logFile.flush()
+CONTEXT = 7  # Left and right context hence total context is 2*CONTEXT
+sentenceLimit = 15000
+BATCH_SIZE = 250
 MODEL = "Test"
 
 
@@ -26,6 +27,7 @@ class Data(torch.utils.data.Dataset):
         self.device = device
         self.context = CONTEXT
         self.sentences = [sentence for sentence in sentences if len(sentence) > 2 * self.context]
+        print(f"Sentences: {len(self.sentences)}")
         idxPtr = 0
         self.w2idx = {}
         self.idx2w = {}
@@ -65,9 +67,9 @@ class NN(nn.Module):
         self.device = device
         self.hidden_size = hidden_size
         self.vocab_size = vocab_size
-        self.softmax = nn.Softmax(dim=1)
+        self.softmax = nn.LogSoftmax(dim=1)
         self.elayer = nn.Embedding(self.vocab_size, self.hidden_size)
-        self.linear1 = nn.Linear(self.hidden_size, self.hidden_size)
+        # self.linear1 = nn.Linear(self.hidden_size, self.hidden_size)
         self.relu = nn.ReLU()
         self.linear2 = nn.Linear(self.hidden_size, self.vocab_size)
         self.to(self.device)
@@ -80,34 +82,11 @@ class NN(nn.Module):
         # print(embeddings.shape)
         # exit(22)
         # linear relu linear
-        out = self.linear1(embeddings)
-        out = self.relu(out)
+        # out = self.linear1(embeddings)
+        out = self.relu(embeddings)
         out = self.linear2(out)
-        # convert it to prob
-        out = self.softmax(out)
+
         return out
-
-
-def getLossDataset(data: Data, model):
-    model.eval()
-
-    dataL = DataLoader(data, batch_size=BATCH_SIZE, shuffle=True)
-
-    criterionL = nn.CrossEntropyLoss()  # ignore_index=data.tagPadIdx)
-    loss = 0
-
-    for i, (x, y) in enumerate(dataL):
-        x = x.to(model.device)
-        y = y.to(model.device)
-
-        output = model(x)
-
-        y = y.view(-1)
-        output = output.view(-1, output.shape[-1])
-
-        loss += criterionL(output, y)
-
-    return loss / len(dataL)
 
 
 def train(model, data, optimizer, criterion):
@@ -120,8 +99,9 @@ def train(model, data, optimizer, criterion):
 
     epoch = 0
     model.train_data = data
+    pat = 5
     while lossDec:
-        torch.save(model.state_dict(), f"model.pt")
+        torch.save(model.state_dict(), f"modelFixed.pt")
         epoch_loss = 0
         for i, (x, y) in enumerate(dataL):
             optimizer.zero_grad()
@@ -142,67 +122,19 @@ def train(model, data, optimizer, criterion):
                 print(f"Epoch {epoch + 1} Batch {i} loss: {loss.item()}")
 
         if epoch_loss / len(dataL) > prevLoss:
-            lossDec = False
+            if pat == 0:
+                lossDec = False
+            else:
+                pat -= 1
+        else:
+            pat = 5
+
+        print(f"Epoch {epoch + 1} loss: {epoch_loss / len(dataL)} | Change: {(epoch_loss / len(dataL)) - prevLoss}")
+        logFile.write(
+            f"Epoch {epoch + 1} loss: {epoch_loss / len(dataL)} | Change: {(epoch_loss / len(dataL)) - prevLoss}" + "\n")
+        logFile.flush()
         prevLoss = epoch_loss / len(dataL)
-
-        print(f"Epoch {epoch + 1} loss: {epoch_loss / len(dataL)}")
         epoch += 1
-
-
-def accuracy(model, data):
-    model.eval()
-    correct = 0
-    total = 0
-    for i, (x, y) in enumerate(DataLoader(data, batch_size=BATCH_SIZE, shuffle=True)):
-        x = x.to(model.device)
-        y = y.to(model.device)
-
-        output = model(x)
-
-        y = y.view(-1)
-        output = output.view(-1, output.shape[-1])
-
-        _, predicted = torch.max(output, 1)
-        # print x as words
-        # print(x)
-        # print([model.train_data.idx2w[i] for i in x.view(-1).tolist()])
-        # print(x.view(-1).size(0))
-        # print(y.size(0))
-        # exit(22)
-        # only those are suitable in which x is not bos eos or pad
-        suitableIdx = [i for i in range(x.view(-1).size(0)) if x.view(-1)[i] != model.train_data.padIdx]
-        # test = x.view(-1)[suitableIdx].tolist()
-        # print([model.train_data.idx2w[i] for i in test])
-        # exit(0)
-        y_masked = y[suitableIdx]
-        total += y_masked.size(0)
-        correct += (predicted[suitableIdx] == y_masked).sum().item()
-    return correct / total
-
-
-def runSkMetric(model, data):
-    model.eval()
-    y_true = []
-    y_pred = []
-
-    for i, (x, y) in enumerate(DataLoader(data, batch_size=BATCH_SIZE, shuffle=True)):
-        x = x.to(model.device)
-        y = y.to(model.device)
-
-        output = model(x)
-
-        y = y.view(-1)
-        output = output.view(-1, output.shape[-1])
-        suitableIdx = [i for i in range(x.view(-1).size(0)) if x.view(-1)[i] != model.train_data.padIdx]
-        _, predicted = torch.max(output, 1)
-        y_masked = y[suitableIdx]
-        y_pred_masked = predicted[suitableIdx]
-        y_true.extend(y_masked.tolist())
-        y_pred.extend(y_pred_masked.tolist())
-
-    y_trueTag = [model.train_data.tagIdx2w[i] for i in y_true]
-    y_predTag = [model.train_data.tagIdx2w[i] for i in y_pred]
-    return cr(y_trueTag, y_predTag)
 
 
 jsonInput = open('reviews_Movies_and_TV_processed.json', 'r', encoding="utf8")
@@ -218,9 +150,9 @@ trainData = Data(totalSentences)
 print("Loaded")
 
 model = NN(300, trainData.vocab_size)
-if os.path.exists("model.pt"):
+if os.path.exists("modelFixed.pt"):
     model.load_state_dict(torch.load("model.pt"))
     print("Loaded model")
-optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+optimizer = torch.optim.Adam(model.parameters(), lr=0.005)
 criterion = nn.CrossEntropyLoss()
 train(model, trainData, optimizer, criterion)
